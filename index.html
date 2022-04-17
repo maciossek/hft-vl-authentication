@@ -1,0 +1,459 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8" />
+
+  <title>HFT IPR Authentication mit Auth0</title>
+
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <script async src="https://production-assets.codepen.io/assets/embed/ei.js"></script>
+</head>
+
+<body>
+  <div class="reveal">
+    <div class="slides">
+      <section data-background-image="https://media.giphy.com/media/Fz6gBKK52Nfyg/giphy.gif">
+        <h1 class="title">IPR</h1>
+        <h3 class="title">Authentication mit Auth0</h3>
+      </section>
+
+      <!-- Auth -->
+      <section>
+        <section data-auto-animate data-background-size="cover"
+          data-background-image="https://media.giphy.com/media/l1J9v4RNoCdFjuvtu/giphy.gif">
+          <h3 class="title">Auth0 features</h3>
+        </section>
+        <section data-auto-animate>
+          <h3>Auth methoden</h3>
+          <ul>
+            <li>Oauth2</li>
+            <li>Client ID / Client Secret</li>
+            <li>nur Client ID</li>
+          </ul>
+        </section>
+        <section data-auto-animate>
+          <h3>Universal Login</h3>
+          <ul>
+            <li>Zentrale Stelle wie z.B. https://accounts.google.com</li>
+            <li>Sicher</li>
+            <li>Arbeitet mit Redirects</li>
+          </ul>
+        </section>
+        <section data-auto-animate>
+          <h3>Embedded Login</h3>
+          <ul>
+            <li>Cross-Origin Request</li>
+            <li>Weniger sicher</li>
+            <li>Arbeitet ohne Redirects</li>
+          </ul>
+          <small>https://auth0.com/docs/authenticate/login/universal-vs-embedded-login</small>
+        </section>
+        <section data-auto-animate>
+          <h3>Resource Owner Password Flow</h3>
+          <img
+            src="https://images.ctfassets.net/cdy7uua7fh8z/4EeYNcnVX1RFcTy5z4lP4v/c3e4d22e6f8bf558caf07338a7388097/ROP_Grant.png" />
+        </section>
+
+      </section>
+
+      <!-- Frontend -->
+      <section>
+        <section data-auto-animate data-background-size="cover"
+          data-background-image="https://media.giphy.com/media/DhstvI3zZ598Nb1rFf/giphy.gif">
+          <h3 class="title">Frontend</h3>
+        </section>
+        <section data-auto-animate>
+          <h3>config/env.js</h3>
+          <pre><code class="js" data-trim data-noescape data-line-numbers><script type="text/template">
+            /* istanbul ignore file */
+            const envConfig = {
+              COMMIT_HASH: process.env.REACT_APP_COMMIT_HASH || "",
+              NODE_ENV: process.env.NODE_ENV || "",
+              API_ENDPOINT: process.env.REACT_APP_API_ENDPOINT || "",
+              AUTH0_DOMAIN: process.env.REACT_APP_AUTH0_DOMAIN || "",
+              AUTH0_CLIENT_ID: process.env.REACT_APP_AUTH0_CLIENT_ID || "",
+            };
+            
+            export const isDev = envConfig.NODE_ENV === "development";
+            export const isTest = envConfig.NODE_ENV === "test";
+            export const isProd = envConfig.NODE_ENV === "production";
+            
+            const baseUrlArray = envConfig.API_ENDPOINT.split("/");
+            export const baseUrl = `${baseUrlArray[0]}//${baseUrlArray[2]}`;
+            
+            export default envConfig;
+          </script></code></pre>
+        </section>
+        <section data-auto-animate>
+          <h3>config/auth0.js</h3>
+          <pre><code class="js" data-trim data-noescape data-line-numbers><script type="text/template">
+            /* istanbul ignore file */
+            import env from "./env";
+            import { WebAuth } from "auth0-js";
+            
+            const auth0 = new WebAuth({
+              domain: env.AUTH0_DOMAIN,
+              clientID: env.AUTH0_CLIENT_ID,
+              responseType: "token id_token",
+              redirectUri: "http://localhost:3000",
+              audience: env.API_ENDPOINT,
+              scope: "openid profile email",
+            });
+            
+            export default auth0;
+            
+          </script></code></pre>
+        </section>
+        <section data-auto-animate>
+          <h3>Universal Login</h3>
+          <pre><code class="js" data-trim data-noescape data-line-numbers><script type="text/template">
+            const handleSubmit = (values) => {
+              auth0.authorize(); // sicher, redirect
+            };
+          </script></code></pre>
+        </section>
+        <section data-auto-animate>
+          <h3>Embedded Login</h3>
+          <pre><code class="js" data-trim data-noescape data-line-numbers><script type="text/template">
+            const handleSubmit = (values) => {
+              auth0.client.login(
+                {
+                  realm: "Username-Password-Authentication",
+                  username: values.username,
+                  password: values.password,
+                },
+                (err, authResult) => {
+                  if (err) {
+                    setErrorMessage(`Login failed: ${err.description}`);
+                  }
+                  message.success("Login successful");
+                }
+              );
+            };
+          </script></code></pre>
+        </section>
+        <section data-auto-animate>
+          <h3>Access Token, Refresh Token, ID Token</h3>
+          <ul>
+            <li>Access token: API Requests</li>
+            <li>ID Token: Oauth Client & User Infos</li>
+            <li>Refresh Token: Damit können neue tokens generiert werden</li>
+          </ul>
+        </section>
+        <section data-auto-animate>
+          <h3>RequireAuth.js anpassen</h3>
+          <pre><code class="js" data-trim data-noescape data-line-numbers><script type="text/template">
+            import { Navigate, useLocation } from "react-router-dom";
+
+            export default function ProtectedRoute({ children }) {
+              const location = useLocation();
+
+              const logout = async () => {
+                localStorage.clear("accessToken");
+              };
+
+              if (localStorage.getItem("accessToken")) {
+                return children;
+              } else {
+                logout();
+              }
+
+              return <Navigate to="/public/login" state={{ from: location }} />;
+            }
+
+          </script></code></pre>
+        </section>
+        <section data-auto-animate>
+          <h3>RequireAuth.spec.js anpassen</h3>
+          <pre><code class="js" data-trim data-noescape data-line-numbers><script type="text/template">
+          it("Should let us through if we are logged in", async () => {
+            const spy = jest
+              .spyOn(window.localStorage.__proto__, "getItem")
+              .mockImplementation(() => "asd");
+        
+            render(
+              <AllProviders>
+                <RequireAuth>
+                  <p>crap stories</p>
+                </RequireAuth>
+              </AllProviders>
+            );
+            const headline = await screen.findByText(/Crap stories/i);
+            expect(headline).toBeInTheDocument();
+            spy.mockReset();
+          });
+        </script></code></pre>
+        </section>
+
+        <section data-auto-animate>
+          <h3>Daten vom Server holen</h3>
+          <small>npm i -D msw</small>
+          <pre><code class="js" data-trim data-noescape data-line-numbers><script type="text/template">
+            import "@testing-library/jest-dom";
+            import { setupServer } from "msw/node";
+            import defaultHandlers from "../mockdata/mockRequests";
+
+            global.matchMedia =
+              global.matchMedia ||
+              function () {
+                return {
+                  addListener: jest.fn(),
+                  removeListener: jest.fn(),
+                };
+              };
+
+            const localStorageMock = {
+              getItem: jest.fn(),
+              setItem: jest.fn(),
+              clear: jest.fn(),
+            };
+            global.localStorage = localStorageMock;
+            global.server = setupServer(...defaultHandlers);
+
+            beforeAll(() => global.server.listen());
+            afterEach(() => global.server.resetHandlers());
+            afterAll(() => global.server.close());
+
+        </script></code></pre>
+        </section>
+        <section data-auto-animate>
+          <h3>Request mocking</h3>
+          <pre><code class="js" data-trim data-noescape data-line-numbers><script type="text/template">
+            import { rest } from "msw";
+            import mockStories from "./stories.json";
+
+            const storyHandlers = [
+              rest.get("/story/random", (req, res, ctx) => {
+                return res(ctx.json(mockStories[0]));
+              }),
+            ];
+
+            export const defaultHandlers = [...storyHandlers];
+
+            export default defaultHandlers;
+        </script></code></pre>
+        </section>
+        <section data-auto-animate>
+          <h3>Axios config</h3>
+          <small>npm i axios</small>
+          <pre><code class="js" data-trim data-noescape data-line-numbers><script type="text/template">
+            /* istanbul ignore file */
+            import env from "./env";
+            import axios from "axios";
+            
+            const instance = axios.create({
+              baseURL: env.API_ENDPOINT,
+              headers: { Authorization: `Bearer ${localStorage.getItem("accessToken")}` },
+            });
+            
+            export default instance;
+        </script></code></pre>
+        </section>
+        <section data-auto-animate>
+          <h3>Daten vom Server holen</h3>
+          <pre><code class="js" data-trim data-noescape data-line-numbers><script type="text/template">
+            export default function HomeView() {
+              const [story, setStory] = useState(null);
+              const [loading, setLoading] = useState(true);
+            
+              const fetchRandomStory = async () => {
+                const res = await axios.get("/story/random");
+                setStory(res.data);
+                setLoading(false);
+              };
+            
+              useEffect(() => {
+                fetchRandomStory();
+              }, []);
+            
+              const handleRandom = () => fetchRandomStory();
+            
+              if (loading) {
+                return <div>Loading...</div>;
+              }
+            
+              return (
+                <StoryContainer>
+                  <Story story={story} />
+                  <div style={{ marginTop: "30px" }}>
+                    <Space align="center">
+                      <Button type="primary" onClick={handleRandom}>
+                        show me another one
+                      </Button>
+                      <span>or</span>
+                      <Link to={`${RouteName.HOME}/create`}>
+                        <Button type="primary">add one yourself</Button>
+                      </Link>
+                    </Space>
+                  </div>
+                </StoryContainer>
+              );
+            }
+        </script></code></pre>
+        </section>
+      </section>
+
+      <!-- Backend -->
+      <section>
+        <section data-auto-animate data-background-size="cover"
+          data-background-image="https://media.giphy.com/media/UyWXNumwNvXmE/giphy.gif">
+          <h3 class="title">Backend</h3>
+          <small class="white">npm i jwks-rsa jsonwebtoken</small>
+        </section>
+        <section data-auto-animate>
+          <h3>tokenAuthentication.spec.js</h3>
+          <pre><code class="js" data-trim data-noescape data-line-numbers><script type="text/template">
+            describe("authentication middleware", () => {
+              afterEach(() => {
+                jest.restoreAllMocks();
+              });
+            });
+          </script></code></pre>
+        </section>
+        <section data-auto-animate>
+          <h3>tokenAuthentication.spec.js</h3>
+          <pre><code class="js" data-trim data-noescape data-line-numbers><script type="text/template">
+            it("should run without errors", async () => {
+              jwks.mockReturnValue({ getSigningKey: () => ({ getPublicKey: () => "pubKey" }) });
+              jest.spyOn(jwt, "verify").mockImplementation(() => jest.fn());
+              jest.spyOn(jwt, "decode").mockImplementation(() => ({
+                header: {
+                  kid: "kid",
+                },
+                payload: {
+                  exp: Math.floor(Date.now() / 1000) + 3600,
+          
+                  token_use: "access",
+                },
+              }));
+          
+              const nextSpy = jest.fn();
+              const mw = tokenAuthentication();
+          
+              await mw({ headers: { authorization: "Bearer yas" } }, {}, nextSpy);
+          
+              expect(nextSpy).toHaveBeenCalledWith();
+            });
+          </script></code></pre>
+        </section>
+        <section data-auto-animate>
+          <h3>tokenAuthentication.spec.js</h3>
+          <pre><code class="js" data-trim data-noescape data-line-numbers><script type="text/template">
+            it("should throw error when no authorization header is set", async () => {
+              const nextSpy = jest.fn();
+              const mw = tokenAuthentication();
+          
+              mw({ headers: { something: "else" } }, {}, nextSpy);
+              expect(nextSpy).toHaveBeenCalledWith(new Error("Authorization Header was not sent"));
+            });
+          </script></code></pre>
+        </section>
+        <section data-auto-animate>
+          <h3>tokenAuthentication.spec.js</h3>
+          <pre><code class="js" data-trim data-noescape data-line-numbers><script type="text/template">
+            it("should throw error when token cannot be decoded", () => {
+              const nextSpy = jest.fn();
+              const mw = tokenAuthentication();
+          
+              mw({ headers: { authorization: "Bearer yas" } }, {}, nextSpy);
+              expect(nextSpy).toHaveBeenCalledWith(new Error("Token could not be decoded"));
+            });
+          </script></code></pre>
+        </section>
+        <section data-auto-animate>
+          <h3>tokenAuthentication.js</h3>
+          <pre><code class="js" data-trim data-noescape data-line-numbers><script type="text/template">
+            import jwt from "jsonwebtoken";
+            import env from "../config/env";
+            import httpStatus from "http-status";
+            import jwks from "jwks-rsa";
+            import ApiError from "../exception/ApiError";
+
+            export default function authentication() {
+              return async (req, res, next) => {
+                let token;
+
+                if (req.headers.authorization && req.headers.authorization.startsWith("Bearer ")) {
+                  token = req.headers.authorization.substring(7, req.headers.authorization.length);
+                } else {
+                  next(new ApiError("Authorization Header was not sent", httpStatus.FORBIDDEN));
+                  return;
+                }
+
+                const jwksClient = jwks({
+                  cache: true,
+                  rateLimit: true,
+                  jwksRequestsPerMinute: 5,
+                  jwksUri: env.jwksUri,
+                });
+
+                try {
+                  const decodedToken = jwt.decode(token, { complete: true });
+                  const signingKey = await jwksClient.getSigningKey(decodedToken.header.kid);
+
+                  jwt.verify(token, signingKey.getPublicKey());
+                  next();
+                } catch (err) {
+                  next(new ApiError("Token could not be decoded", httpStatus.FORBIDDEN));
+                }
+              };
+            }
+
+          </script></code></pre>
+        </section>
+        <section data-auto-animate>
+          <h3>story.router.js</h3>
+          <pre><code class="js" data-trim data-noescape data-line-numbers="5,10"><script type="text/template">
+            import { Router } from "express";
+            import { getStory, createStory, getRandomStory } from "./story.handler";
+            import { createValidator } from "express-joi-validation";
+            import { createStoryValidation } from "./story.validation";
+            import { tokenAuthentication } from "../middleware/index";
+            
+            const validator = createValidator();
+            const router = Router();
+            
+            router.use(tokenAuthentication());
+            router.route("/").post(validator.body(createStoryValidation), createStory);
+            router.route("/random").get(getRandomStory);
+            router.route("/:uuid").get(getStory);
+            
+            export default router;
+          </script></code></pre>
+        </section>
+        <section data-auto-animate>
+          <h3>mocks</h3>
+          <pre><code class="js" data-trim data-noescape data-line-numbers><script type="text/template">
+            export default function authentication() {
+              return (req, res, next) => {
+                next();
+              };
+            }            
+          </script></code></pre>
+        </section>
+      </section>
+
+      <section>
+        <h3>Links</h3>
+        <ul>
+
+          <li>
+            <a href="https://github.com/maciossek/crap-stories-node/tree/feature/auth0">Backend Repo</a>
+          </li>
+          <li>
+            <a href="https://github.com/maciossek/crap-stories-react/tree/feature/auth0">Frontend Repo</a>
+          </li>
+          <li>
+            <a href="https://auth0.com/docs/api/authentication#introduction">Auth0 Api</a>
+          </li>
+        </ul>
+      </section>
+    </div>
+  </div>
+</body>
+
+</html>
